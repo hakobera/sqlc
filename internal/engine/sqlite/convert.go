@@ -196,8 +196,13 @@ func (c *cc) convertDrop_stmtContext(n *parser.Drop_stmtContext) ast.Node {
 }
 
 func (c *cc) convertFuncContext(n *parser.Expr_functionContext) ast.Node {
-	if name, ok := n.Function_name().(*parser.Function_nameContext); ok {
-		funcName := strings.ToLower(name.GetText())
+	if name, ok := n.Qualified_function_name().(*parser.Qualified_function_nameContext); ok {
+		funcName := strings.ToLower(name.Function_name().GetText())
+
+		schema := ""
+		if name.Schema_name() != nil {
+			schema = name.Schema_name().GetText()
+		}
 
 		var argNodes []ast.Node
 		for _, exp := range n.AllExpr() {
@@ -207,12 +212,14 @@ func (c *cc) convertFuncContext(n *parser.Expr_functionContext) ast.Node {
 
 		if funcName == "coalesce" {
 			return &ast.CoalesceExpr{
-				Args: args,
+				Args:     args,
+				Location: name.GetStart().GetStart(),
 			}
 		} else {
 			return &ast.FuncCall{
 				Func: &ast.FuncName{
-					Name: funcName,
+					Schema: schema,
+					Name:   funcName,
 				},
 				Funcname: &ast.List{
 					Items: []ast.Node{
@@ -223,6 +230,7 @@ func (c *cc) convertFuncContext(n *parser.Expr_functionContext) ast.Node {
 				Args:        args,
 				AggOrder:    &ast.List{},
 				AggDistinct: n.DISTINCT_() != nil,
+				Location:    name.GetStart().GetStart(),
 			}
 		}
 	}
@@ -564,6 +572,18 @@ func (c *cc) convertParam(n *parser.Expr_bindContext) ast.Node {
 	return todo(n)
 }
 
+func (c *cc) convertNamedParam(n *parser.Expr_named_bindContext) ast.Node {
+	if n.NAMED_BIND_PARAMETER() != nil {
+		c.paramCount += 1
+		return &ast.A_Expr{
+			Name:     &ast.List{Items: []ast.Node{&ast.String{Str: "@"}}},
+			Rexpr:    &ast.String{Str: n.GetText()[1:]},
+			Location: n.GetStart().GetStart(),
+		}
+	}
+	return todo(n)
+}
+
 func (c *cc) convertInSelectNode(n *parser.Expr_in_selectContext) ast.Node {
 	return c.convert(n.Select_stmt())
 }
@@ -816,6 +836,9 @@ func (c *cc) convert(node node) ast.Node {
 
 	case *parser.Expr_bindContext:
 		return c.convertParam(n)
+
+	case *parser.Expr_named_bindContext:
+		return c.convertNamedParam(n)
 
 	case *parser.Expr_literalContext:
 		return c.convertLiteral(n)
