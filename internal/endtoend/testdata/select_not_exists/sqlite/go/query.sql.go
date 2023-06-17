@@ -10,20 +10,20 @@ import (
 )
 
 const barNotExists = `-- name: BarNotExists :one
-SELECT
+SELECT 
     NOT EXISTS (
         SELECT
             1
         FROM
             bar
         WHERE
-            id = $1
+            id = ?
     )
 `
 
-func (q *Queries) BarNotExists(ctx context.Context, id int32) (bool, error) {
-	row := q.db.QueryRowContext(ctx, barNotExists, id)
-	var not_exists bool
-	err := row.Scan(&not_exists)
-	return not_exists, err
+func (q *Queries) BarNotExists(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, barNotExists)
+	var column_1 interface{}
+	err := row.Scan(&column_1)
+	return column_1, err
 }
